@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; media-src 'self' blob: chui-audio:; img-src 'self' data:; connect-src 'self'"
+    />
+    <title>Chui Eve</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="titlebar">
+      <span>Chui Eve</span
+      ><span class="privacy">本地转写 · GPT-5.5 云端提炼</span
+      ><button id="theme" title="切换浅色或深色外观" aria-label="切换外观">
+        ◐
+      </button>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <img class="brand-icon" src="icon.png" alt="EVE" />
+          <div>
+            <strong>Chui Eve</strong><small>让每次对话，留下脉络。</small>
+          </div>
+        </div>
+        <div class="capture">
+          <div class="capture-top">
+            <span id="live-status"><i class="dot"></i>准备就绪</span
+            ><time id="timer">00:00</time>
+          </div>
+          <canvas id="wave" height="65" aria-label="实时音量波形"></canvas
+          ><label class="field-label" for="meeting-title">会议名称</label
+          ><input
+            id="meeting-title"
+            placeholder="例如：产品方案讨论"
+            maxlength="150"
+          /><label class="field-label" for="device">音频来源</label
+          ><select id="device">
+            <option value="">系统默认麦克风</option></select
+          ><label class="check"
+            ><input type="checkbox" id="system-audio" />同时录制电脑声音<span
+              title="线上会议请开启，macOS 将请求屏幕与系统录音权限"
+              >ⓘ</span
+            ></label
+          ><button class="primary record" id="record">
+            <span>●</span> 开始会议
+          </button>
+          <p id="capture-note">语音停顿后分段转写，最长约 12 秒一段。</p>
+        </div>
+        <button class="import" id="import">＋ 导入音频 / 视频</button>
+        <p class="formats">
+          MP3 · M4A · WAV · FLAC · MP4 等<br />支持多选，也可以拖入文件
+        </p>
+        <nav>
+          <button id="all" class="nav-active">
+            ▤ 全部记录 <span id="count">0</span></button
+          ><button id="open-settings">⚙ 转写设置</button
+          ><button id="open-folder">↗ 打开本地文件夹</button>
+        </nav>
+        <div class="engine">
+          <i class="dot" id="engine-dot"></i>
+          <div>
+            <strong id="engine-state">未加载</strong
+            ><small id="engine-model">Qwen3 ASR · 本地识别</small>
+          </div>
+        </div>
+      </aside>
+      <section class="library">
+        <div class="section-title">
+          <h1>记录</h1>
+          <span id="queue-count"></span>
+        </div>
+        <input
+          type="search"
+          id="search"
+          placeholder="搜索标题与转写内容"
+          aria-label="搜索记录"
+        />
+        <div class="filters">
+          <button class="selected" data-filter="all">全部</button
+          ><button data-filter="live">会议</button
+          ><button data-filter="file">导入</button>
+        </div>
+        <div id="records" class="records"></div>
+      </section>
+      <main id="detail">
+        <div class="empty-detail">
+          <div class="empty-glyph">〰</div>
+          <h2>把声音，变成可用的文字。</h2>
+          <p>
+            开始一场会议，或导入已有录音。<br />转写与原始音频会一起保存在本机。
+          </p>
+          <button class="secondary" id="empty-import">导入第一段音频 ↗</button>
+          <div class="empty-foot">独立后台转写 · 可编辑文字 · 时间戳回听</div>
+        </div>
+      </main>
+    </div>
+    <dialog id="settings-dialog">
+      <div class="dialog-head">
+        <h2>转写设置</h2>
+        <button id="close-settings" aria-label="关闭设置">×</button>
+      </div>
+      <p>切换模型会重新加载引擎，已有记录保持不变。</p>
+      <label class="model-option"
+        ><input type="radio" name="backend" value="mlx" />
+        <div>
+          <strong>Qwen3-ASR 1.7B · MLX 4-bit</strong
+          ><small>Apple Silicon GPU 加速 · 更大的识别模型</small>
+        </div></label
+      ><label class="model-option"
+        ><input type="radio" name="backend" value="sherpa" />
+        <div>
+          <strong>Qwen3-ASR 0.6B · ONNX INT8</strong
+          ><small>复用原 EVE 模型 · CPU 运行 · 备用引擎</small>
+        </div></label
+      >
+      <p class="hint">
+        当前为分段转写。时间戳表示音频分段范围，并非逐字对齐；暂不自动区分说话人。摘要与思维导图通过
+        Codex CLI 调用 GPT-5.5，仅提交转写文字。
+      </p>
+      <button class="primary" id="save-settings">应用并加载模型</button>
+      <p id="settings-status" role="status"></p>
+    </dialog>
+    <div id="toast" role="status"></div>
+    <div id="drop-overlay">松开文件，开始本地转写</div>
+    <script src="insights-ui.js"></script>
+    <script src="renderer.js"></script>
+  </body>
+</html>
