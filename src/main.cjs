@@ -14,7 +14,17 @@ const {
   protocol,
   net,
   powerSaveBlocker,
+  safeStorage,
 } = require("electron");
+// CoreAudio Tap fails with Invalid capture constraints on this macOS host.
+// Use Electron's supported ScreenCaptureKit loopback path with the granted
+// Screen & System Audio Recording permission instead.
+if (process.platform === "darwin") {
+  app.commandLine.appendSwitch(
+    "disable-features",
+    "MacCatapLoopbackAudioForScreenShare",
+  );
+}
 const path = require("node:path"),
   os = require("node:os"),
   fs = require("node:fs/promises");
@@ -23,6 +33,7 @@ const { Insights, markdown: insightsMarkdown } = require("./insights.cjs");
 const { Engine } = require("./engine.cjs");
 const { exportText } = require("./audio.cjs");
 const { audioResponse } = require("./media.cjs");
+const { ModelSettings, completion } = require("./model-api.cjs");
 app.setName("Chui Eve");
 protocol.registerSchemesAsPrivileged([
   {
@@ -35,6 +46,7 @@ protocol.registerSchemesAsPrivileged([
     },
   },
 ]);
+let windowControls;
 let win,
   engine,
   insights,
@@ -49,8 +61,7 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on("second-instance", () => {
-    win?.show();
-    win?.focus();
+    windowControls?.show();
   });
   app.whenReady().then(async () => {
     engine = new Engine({
@@ -61,7 +72,18 @@ if (!app.requestSingleInstanceLock()) {
     });
     engine.on("error", (e) => console.error(e));
     await engine.init();
-    insights = new Insights(engine);
+    const modelSettings = new ModelSettings(
+      path.join(engine.root, "model-api.json"),
+      safeStorage,
+    );
+    let modelConfigError = "";
+    await modelSettings.init().catch((e) => {
+      modelConfigError = e.message;
+    });
+    insights = new Insights(engine, {
+      settings: modelSettings,
+      fetchImpl: net.fetch,
+    });
     protocol.handle("chui-audio", async (req) => {
       try {
         const id = new URL(req.url).hostname;
@@ -96,7 +118,9 @@ if (!app.requestSingleInstanceLock()) {
           callback({});
         }
       },
-      { useSystemPicker: true },
+      // Use the explicit source handler after macOS grants capture permission.
+      // The experimental system picker can fail before returning a stream.
+      { useSystemPicker: false },
     );
     win = new BrowserWindow({
       width: 1140,
@@ -119,6 +143,7 @@ if (!app.requestSingleInstanceLock()) {
         backgroundThrottling: false,
       },
     });
+    windowControls = require("./window-lifecycle.cjs").windowLifecycle(win);
     win.webContents.on("render-process-gone", () => {
       for (const r of engine.records)
         if (r.state === "recording") engine.stopLive(r.id).catch(console.error);
@@ -156,6 +181,43 @@ if (!app.requestSingleInstanceLock()) {
       return true;
     });
     handle("state", () => engine.snapshot());
+    handle("model-settings", () => ({
+      ...modelSettings.public(),
+      error: modelConfigError,
+    }));
+    handle("model-settings-save", async (value) => {
+      if (insights.active) throw Error("请等待摘要生成完成或取消后再修改配置");
+      const result = await modelSettings.save(value);
+      modelConfigError = "";
+      return result;
+    });
+    let testingModel = false;
+    handle("model-test", async () => {
+      if (testingModel) throw Error("连接测试正在进行");
+      testingModel = true;
+      try {
+        const config = modelSettings.credentials();
+        if (config.mode === "codex") {
+          await insights.resolveBinary();
+          return "已找到 Codex CLI；实际生成仍需有效登录、模型权限及额度。";
+        }
+        const value = await completion(
+          { ...config, timeout: Math.min(config.timeout, 30) },
+          '连接测试，不包含录音或转写数据。只返回 JSON：{"ok":true}',
+          {
+            type: "object",
+            properties: { ok: { type: "boolean" } },
+            required: ["ok"],
+          },
+          { fetchImpl: net.fetch },
+        );
+        if (value.ok !== true)
+          throw Error("服务可连接，但未按要求返回 JSON，请检查模型兼容性");
+        return "连接成功：模型可返回有效 JSON。";
+      } finally {
+        testingModel = false;
+      }
+    });
     handle("warm", () => {
       engine.ensureWorker();
       return true;
@@ -264,28 +326,34 @@ if (!app.requestSingleInstanceLock()) {
     handle("folder", (id) => shell.openPath(id ? engine.dir(id) : engine.root));
     handle("settings", async (value) => {
       const model =
-        value.backend === "mlx"
-          ? path.join(
-              os.homedir(),
-              "Library/Application Support/Chui Eve/models/Qwen3-ASR-1.7B-4bit",
-            )
-          : require("./engine.cjs").DEFAULT_MODEL;
+        value.backend === "mlx-bf16"
+          ? require("./models.cjs").BF16_MODEL
+          : value.backend === "funasr"
+            ? require("./models.cjs").FUNASR_MODEL
+            : value.backend === "mlx"
+              ? path.join(
+                  os.homedir(),
+                  "Library/Application Support/Chui Eve/models/Qwen3-ASR-1.7B-4bit",
+                )
+              : require("./engine.cjs").DEFAULT_MODEL;
       await engine.configure({ ...value, model });
       return engine.snapshot();
     });
-    handle("availability", async () => ({
-      mlx: await fs
-        .access(
-          path.join(
-            os.homedir(),
-            "Library/Application Support/Chui Eve/models/Qwen3-ASR-1.7B-4bit/model.safetensors",
-          ),
-        )
-        .then(
-          () => true,
-          () => false,
-        ),
-    }));
+    handle("availability", async () => {
+      const {
+        available,
+        DEFAULT_MODEL,
+        MLX_MODEL,
+        BF16_MODEL,
+        FUNASR_MODEL,
+      } = require("./models.cjs");
+      return {
+        sherpa: available("sherpa", DEFAULT_MODEL),
+        "mlx-bf16": available("mlx-bf16", BF16_MODEL),
+        mlx: available("mlx", MLX_MODEL),
+        funasr: available("funasr", FUNASR_MODEL),
+      };
+    });
     const icon = nativeImage.createFromDataURL(
       "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAFElEQVR4nGNgGAWjYBSMglEwCkgAAAUQAAHPZc50AAAAAElFTkSuQmCC",
     );
@@ -294,13 +362,12 @@ if (!app.requestSingleInstanceLock()) {
     tray.setToolTip("Chui Eve");
     tray.setContextMenu(
       Menu.buildFromTemplate([
-        { label: "打开 Chui Eve", click: () => win.show() },
+        { label: "打开 Chui Eve", click: () => windowControls.show() },
         { label: "退出", click: () => app.quit() },
       ]),
     );
     tray.on("click", () => {
-      win.show();
-      win.focus();
+      windowControls.show();
     });
     Menu.setApplicationMenu(
       Menu.buildFromTemplate([
@@ -329,7 +396,7 @@ if (!app.requestSingleInstanceLock()) {
           label: "窗口",
           submenu: [
             { role: "minimize" },
-            { label: "显示主窗口", click: () => win.show() },
+            { label: "显示主窗口", click: () => windowControls.show() },
             { role: "toggleDevTools" },
           ],
         },
@@ -339,10 +406,10 @@ if (!app.requestSingleInstanceLock()) {
     win.on("close", (event) => {
       if (!quitting) {
         event.preventDefault();
-        win.hide();
+        windowControls.hide();
       }
     });
-    app.on("activate", () => win.show());
+    app.on("activate", () => windowControls.show());
   });
   app.on("before-quit", (event) => {
     if (!quitting && engine) {

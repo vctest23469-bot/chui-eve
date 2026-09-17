@@ -3,3 +3,17 @@ runtime/
 dist/
 artifacts/
 .DS_Store
+
+.venv-asr-eval/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+output/
+*.log
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore

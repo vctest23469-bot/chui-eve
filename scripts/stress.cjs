@@ -5,11 +5,9 @@ const { Engine } = require("../src/engine.cjs"),
   { spawnSync } = require("node:child_process");
 (async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "chui-stress-"));
-  const input = path.join(root, "five-minutes.mp3");
-  const sample = path.join(
-    os.homedir(),
-    "Library/Application Support/Eve Recorder/models/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25/test_wavs/fast1.wav",
-  );
+  const input = path.join(root, "five-minutes.wav");
+  const sample = process.env.CHUI_TEST_AUDIO;
+  if (!sample) throw Error("Set CHUI_TEST_AUDIO to a spoken WAV fixture");
   const ff = spawnSync(path.resolve("runtime/ffmpeg"), [
     "-nostdin",
     "-loglevel",
@@ -21,6 +19,8 @@ const { Engine } = require("../src/engine.cjs"),
     sample,
     "-t",
     "300",
+    "-c:a",
+    "pcm_s16le",
     input,
   ]);
   if (ff.status) throw Error(ff.stderr.toString());

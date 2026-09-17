@@ -5,6 +5,9 @@ class Capture extends AudioWorkletProcessor {
     this.offset = 0;
     this.quiet = 0;
     this.frames = 0;
+    this.meterEnergy = 0;
+    this.meterSamples = 0;
+    this.speechHold = 0;
     this.port.onmessage = (e) => {
       if (e.data === "flush") {
         this.flush();
@@ -34,7 +37,15 @@ class Capture extends AudioWorkletProcessor {
     const rms = Math.sqrt(energy / input.length);
     this.quiet = rms < 0.008 ? this.quiet + input.length : 0;
     if (this.offset > 16000 * 2 && this.quiet > 16000 * 0.65) this.flush();
-    if (++this.frames % 16 === 0) this.port.postMessage({ level: rms });
+    this.meterEnergy += energy;
+    this.meterSamples += input.length;
+    if (++this.frames % 16 === 0) {
+      const level = Math.sqrt(this.meterEnergy / this.meterSamples);
+      this.speechHold = level >= 0.008 ? 3 : Math.max(0, this.speechHold - 1);
+      this.port.postMessage({ level, speaking: this.speechHold > 0 });
+      this.meterEnergy = 0;
+      this.meterSamples = 0;
+    }
     return true;
   }
 }

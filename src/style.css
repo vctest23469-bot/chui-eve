@@ -1091,3 +1091,218 @@ main {
 .map-presentation .detail-footer {
   display: none;
 }
+
+/* EVE recording monitor: waveform over a shared frosted parameter panel. */
+#wave {
+  height: 90px;
+  margin: 12px 0 14px;
+}
+.audio-monitor {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: var(--raised);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.monitor-device {
+  grid-column: 1 / -1;
+  border-bottom: 1px solid var(--line);
+  padding: 12px;
+  display: flex;
+  gap: 9px;
+  min-width: 0;
+}
+.monitor-device > div {
+  min-width: 0;
+}
+.audio-monitor small {
+  display: block;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+.audio-monitor strong {
+  display: block;
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 550;
+}
+#monitor-device {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.monitor-icon {
+  color: var(--blue);
+  font-size: 20px;
+  line-height: 1.1;
+  flex-shrink: 0;
+}
+.monitor-reading {
+  display: flex;
+  gap: 6px;
+  padding: 11px 9px;
+  min-width: 0;
+}
+.monitor-speech {
+  border-left: 1px solid var(--line);
+}
+.monitor-speech .dot {
+  flex-shrink: 0;
+  margin: 5px 0 0;
+}
+.monitor-speech .dot.ok {
+  background: #30c65c;
+  box-shadow: 0 0 0 4px #30c65c20;
+}
+.monitor-speech small {
+  font-size: 9px;
+}
+#monitor-db {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.dot.live {
+  background: #30c65c;
+  box-shadow: 0 0 0 4px #30c65c20;
+}
+
+.monitor-icon svg {
+  width: 18px;
+  height: 20px;
+  display: block;
+}
+
+.action-list {
+  padding-left: 24px;
+}
+.action-list > li {
+  padding: 12px 0 20px 4px;
+  border-bottom: 1px solid var(--line);
+}
+.action-list p {
+  margin: 8px 0;
+}
+.action-list blockquote {
+  margin: 12px 0 0;
+  padding-left: 14px;
+  border-left: 2px solid var(--blue);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+#settings-dialog {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+#asr-hotwords {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: inherit;
+  font: inherit;
+  resize: vertical;
+}
+#asr-language {
+  margin: 8px 0 12px;
+}
+
+#model-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+#model-dialog .eyebrow {
+  color: var(--blue);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+#model-dialog h2 {
+  margin-top: 4px;
+}
+#model-dialog .model-intro {
+  line-height: 1.7;
+  margin-bottom: 22px;
+}
+#model-dialog label:not(.check) {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin: 16px 0 7px;
+}
+#model-dialog input:not([type="checkbox"]),
+#model-dialog select {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 13px;
+  padding: 11px 12px;
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+#model-dialog .hint {
+  line-height: 1.6;
+  margin: 7px 0 12px;
+}
+.key-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.key-controls button {
+  font-size: 11px;
+  padding: 7px 9px;
+}
+.api-tuning {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.model-security {
+  margin: 20px 0;
+  padding: 14px 0;
+  border-block: 1px solid var(--line);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+#model-status {
+  font-size: 12px;
+  line-height: 1.7;
+  min-height: 20px;
+  overflow-wrap: anywhere;
+}
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+}
+@media (max-width: 500px) {
+  #model-dialog {
+    padding: 20px;
+  }
+  .dialog-actions {
+    flex-wrap: wrap;
+  }
+  .dialog-actions button {
+    flex: 1;
+  }
+}

@@ -1,14 +1,16 @@
 {
   "name": "chui-eve",
   "productName": "Chui Eve",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "private": true,
   "description": "本地会议实时转写与音频工作台",
   "main": "src/main.cjs",
   "scripts": {
     "start": "electron .",
     "test": "node --test tests/*.test.cjs",
-    "package": "node scripts/package.cjs"
+    "package": "node scripts/package.cjs",
+    "runtime:ffmpeg": "node scripts/build-ffmpeg.cjs",
+    "test:ui": "node scripts/release-check.cjs"
   },
   "devDependencies": {
     "@electron/packager": "^20.3.0",

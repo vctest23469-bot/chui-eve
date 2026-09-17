@@ -10,6 +10,9 @@ api.onShutdown = (fn) =>
   });
 for (const name of [
   "appearance",
+  "model-settings",
+  "model-settings-save",
+  "model-test",
   "insights",
   "insights-cancel",
   "insights-text",

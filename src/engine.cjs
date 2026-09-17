@@ -8,10 +8,12 @@ const { spawn } = require("node:child_process"),
   { createInterface } = require("node:readline"),
   { pipeline } = require("node:stream/promises");
 const { wavHeader, fixWav, planSegments } = require("./audio.cjs");
-const DEFAULT_MODEL = path.join(
-  os.homedir(),
-  "Library/Application Support/Eve Recorder/models/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25",
-);
+const {
+  DEFAULT_MODEL,
+  validateModel,
+  resolveModel,
+  MODEL_LABELS,
+} = require("./models.cjs");
 class Engine extends EventEmitter {
   constructor({ root, runtime }) {
     super();
@@ -46,6 +48,14 @@ class Engine extends EventEmitter {
         ),
       );
     } catch {}
+    const resolved = resolveModel(this.settings);
+    if (resolved !== this.settings) {
+      this.settings = resolved;
+      await fs.writeFile(
+        path.join(this.root, "settings.json"),
+        JSON.stringify(this.settings, null, 2),
+      );
+    }
     for (const id of await fs.readdir(path.join(this.root, "records"))) {
       try {
         const r = JSON.parse(
@@ -144,10 +154,7 @@ class Engine extends EventEmitter {
       duration: 0,
       processed: 0,
       segments: [],
-      model:
-        this.settings.backend === "mlx"
-          ? "Qwen3-ASR 1.7B · MLX 4-bit"
-          : "Qwen3-ASR 0.6B · ONNX INT8",
+      model: MODEL_LABELS[this.settings.backend],
       error: null,
     };
     await fs.mkdir(this.dir(r.id));
@@ -166,11 +173,24 @@ class Engine extends EventEmitter {
     )
       throw Error("请等待当前任务结束后切换模型");
     const backend = settings.backend || this.settings.backend;
-    if (!["sherpa", "mlx"].includes(backend)) throw Error("未知引擎");
+    if (!["sherpa", "mlx", "mlx-bf16", "funasr"].includes(backend))
+      throw Error("未知引擎");
     const model = settings.model || this.settings.model;
-    await fs.access(model);
+    validateModel(backend, model);
+    const hotwords = String(
+      settings.hotwords ?? this.settings.hotwords ?? "",
+    ).slice(0, 1200);
+    const language = settings.language ?? this.settings.language ?? "";
+    if (!["", "Chinese"].includes(language)) throw Error("不支持的识别语言");
     this.shutdownWorker();
-    this.settings = { ...this.settings, ...settings, backend, model };
+    this.settings = {
+      ...this.settings,
+      ...settings,
+      backend,
+      model,
+      hotwords,
+      language,
+    };
     await fs.writeFile(
       path.join(this.root, "settings.json"),
       JSON.stringify(this.settings, null, 2),
@@ -180,9 +200,15 @@ class Engine extends EventEmitter {
   }
   ensureWorker() {
     if (this.child || this.stopping) return;
+    try {
+      validateModel(this.settings.backend, this.settings.model);
+    } catch (error) {
+      this.failWorker(error.message);
+      return;
+    }
     this.state = "正在加载模型";
     this.emitState();
-    const mlx = this.settings.backend === "mlx";
+    const mlx = this.settings.backend.startsWith("mlx");
     const executable = mlx
       ? path.join(
           os.homedir(),
@@ -191,7 +217,16 @@ class Engine extends EventEmitter {
       : path.join(this.runtime, "node");
     const c = spawn(
       executable,
-      [path.join(__dirname, mlx ? "mlx-worker.py" : "asr-worker.cjs")],
+      [
+        path.join(
+          __dirname,
+          mlx
+            ? "mlx-worker.py"
+            : this.settings.backend === "funasr"
+              ? "funasr-worker.cjs"
+              : "asr-worker.cjs",
+        ),
+      ],
       {
         env: {
           ...process.env,
@@ -199,6 +234,7 @@ class Engine extends EventEmitter {
           CHUI_MODEL: this.settings.model,
           HF_HUB_OFFLINE: "1",
           TOKENIZERS_PARALLELISM: "false",
+          CHUI_NODE_PATH: path.join(this.runtime, "node"),
         },
         stdio: ["pipe", "pipe", "pipe"],
       },
@@ -353,10 +389,7 @@ class Engine extends EventEmitter {
     r.segments = [];
     r.processed = 0;
     r.error = null;
-    r.model =
-      this.settings.backend === "mlx"
-        ? "Qwen3-ASR 1.7B · MLX 4-bit"
-        : "Qwen3-ASR 0.6B · ONNX INT8";
+    r.model = MODEL_LABELS[this.settings.backend];
     const segments = await planSegments(this.audioPath(r.id), r.duration);
     if (r.state === "cancelled" || this.stopping) return;
     for (const { start, end } of segments)
@@ -453,7 +486,18 @@ class Engine extends EventEmitter {
         () => this.failWorker("单段识别超过 90 秒，任务已停止，可重试"),
         90000,
       );
-      this.child.stdin.write(JSON.stringify({ id: j.id, path: j.path }) + "\n");
+      this.child.stdin.write(
+        JSON.stringify({
+          id: j.id,
+          path: j.path,
+          language: this.settings.language || null,
+          hotwords: String(this.settings.hotwords || "")
+            .split(/[,，、;；\n]+/)
+            .map((x) => x.trim())
+            .filter(Boolean)
+            .slice(0, 60),
+        }) + "\n",
+      );
     } catch (e) {
       if (this.active === j) {
         await this.finish({ id: j.id, error: e.message });
@@ -473,6 +517,15 @@ class Engine extends EventEmitter {
         r.error = msg.error;
         this.queue = this.queue.filter((q) => q.record !== r.id);
       } else {
+        if (msg.suppressed) {
+          r.qualityIssues ||= [];
+          r.qualityIssues.push({
+            start: j.start,
+            end: j.end,
+            reason: msg.suppressed,
+            rejectedText: msg.rejectedText || null,
+          });
+        }
         if (msg.text)
           r.segments.push({
             start: j.start,

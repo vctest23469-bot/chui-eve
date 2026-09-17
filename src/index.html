@@ -12,8 +12,7 @@
   </head>
   <body>
     <header class="titlebar">
-      <span>Chui Eve</span
-      ><span class="privacy">本地转写 · GPT-5.5 云端提炼</span
+      <span>Chui Eve</span><span class="privacy">本地转写 · 自选模型提炼</span
       ><button id="theme" title="切换浅色或深色外观" aria-label="切换外观">
         ◐
       </button>
@@ -21,7 +20,7 @@
     <div class="shell">
       <aside class="sidebar">
         <div class="brand">
-          <img class="brand-icon" src="icon.png" alt="EVE" />
+          <img class="brand-icon" src="icon.png" alt="Chui Eve" />
           <div>
             <strong>Chui Eve</strong><small>让每次对话，留下脉络。</small>
           </div>
@@ -31,8 +30,47 @@
             <span id="live-status"><i class="dot"></i>准备就绪</span
             ><time id="timer">00:00</time>
           </div>
-          <canvas id="wave" height="65" aria-label="实时音量波形"></canvas
-          ><label class="field-label" for="meeting-title">会议名称</label
+          <canvas id="wave" height="90" aria-label="实时音量波形"></canvas>
+          <div class="audio-monitor" aria-label="录音监测参数">
+            <div class="monitor-device">
+              <span class="monitor-icon" aria-hidden="true"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                >
+                  <rect x="9" y="2" width="6" height="12" rx="3" />
+                  <path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3" /></svg
+              ></span>
+              <div>
+                <small>设备</small
+                ><strong id="monitor-device">系统默认麦克风</strong>
+              </div>
+            </div>
+            <div class="monitor-reading">
+              <span class="monitor-icon" aria-hidden="true">∿</span>
+              <div>
+                <small>音量</small
+                ><strong
+                  id="monitor-db"
+                  title="数字音频电平 dBFS，并非环境声压级"
+                  >— dB</strong
+                >
+              </div>
+            </div>
+            <div
+              class="monitor-reading monitor-speech"
+              title="基于输入能量估计，环境噪声也可能触发；并非语音识别结果"
+            >
+              <i id="monitor-speech-dot" class="dot"></i>
+              <div>
+                <small>有无说话声 · 估计</small
+                ><strong id="monitor-speech">未录制</strong>
+              </div>
+            </div>
+          </div>
+          <label class="field-label" for="meeting-title">会议名称</label
           ><input
             id="meeting-title"
             placeholder="例如：产品方案讨论"
@@ -58,6 +96,7 @@
           <button id="all" class="nav-active">
             ▤ 全部记录 <span id="count">0</span></button
           ><button id="open-settings">⚙ 转写设置</button
+          ><button id="open-model-settings">✦ 摘要模型</button
           ><button id="open-folder">↗ 打开本地文件夹</button>
         </nav>
         <div class="engine">
@@ -105,28 +144,129 @@
       </div>
       <p>切换模型会重新加载引擎，已有记录保持不变。</p>
       <label class="model-option"
+        ><input type="radio" name="backend" value="mlx-bf16" />
+        <div>
+          <strong>Qwen3-ASR 1.7B · MLX BF16</strong
+          ><small>16 位浮点 · 非低比特量化 · Apple Silicon GPU 加速</small>
+        </div></label
+      >
+      <label class="model-option"
         ><input type="radio" name="backend" value="mlx" />
         <div>
           <strong>Qwen3-ASR 1.7B · MLX 4-bit</strong
-          ><small>Apple Silicon GPU 加速 · 更大的识别模型</small>
-        </div></label
-      ><label class="model-option"
-        ><input type="radio" name="backend" value="sherpa" />
-        <div>
-          <strong>Qwen3-ASR 0.6B · ONNX INT8</strong
-          ><small>复用原 EVE 模型 · CPU 运行 · 备用引擎</small>
+          ><small>保留原版本 · 用于同段音频对比</small>
         </div></label
       >
+      <label for="asr-language">识别语言（Qwen 1.7B）</label>
+      <select id="asr-language">
+        <option value="">自动识别</option>
+        <option value="Chinese">中文会议</option>
+      </select>
+      <label for="asr-hotwords">会议术语（仅 Qwen 1.7B，可选）</label>
+      <textarea
+        id="asr-hotwords"
+        rows="3"
+        maxlength="1200"
+        placeholder="例如：语音识别、产品评审、接口测试；用逗号或换行分隔"
+      ></textarea>
+      <p class="hint">
+        术语只用于辅助识别，不保证正确；不要填写无关词或未确认的人名。修改仅影响后续转写。
+      </p>
       <p class="hint">
         当前为分段转写。时间戳表示音频分段范围，并非逐字对齐；暂不自动区分说话人。摘要与思维导图通过
-        Codex CLI 调用 GPT-5.5，仅提交转写文字。
+        你配置的摘要服务生成，仅提交转写文字。
       </p>
       <button class="primary" id="save-settings">应用并加载模型</button>
       <p id="settings-status" role="status"></p>
     </dialog>
+    <dialog id="model-dialog" aria-labelledby="model-dialog-title">
+      <div class="dialog-head">
+        <div>
+          <span class="eyebrow">INSIGHTS</span>
+          <h2 id="model-dialog-title">摘要与思维导图</h2>
+        </div>
+        <button id="close-model-settings" aria-label="关闭摘要设置">×</button>
+      </div>
+      <p class="model-intro">
+        录音与转写留在本机。提炼时，转写文字会发送给你选择的模型服务。
+      </p>
+      <label for="insights-mode">摘要服务</label>
+      <select id="insights-mode">
+        <option value="codex">Codex CLI · GPT-5.5</option>
+        <option value="api">模型 API · OpenAI 兼容</option>
+      </select>
+      <div id="api-fields" hidden>
+        <label for="api-base">API Base URL</label
+        ><input
+          id="api-base"
+          type="url"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="https://api.openai.com/v1"
+        />
+        <p class="hint">
+          填写服务商的 API 根地址，应用会追加 /chat/completions。本机服务可使用
+          HTTP。
+        </p>
+        <label for="api-model">模型名称</label
+        ><input
+          id="api-model"
+          autocomplete="off"
+          spellcheck="false"
+          maxlength="200"
+          placeholder="填写服务商提供的模型 ID"
+        />
+        <label for="api-key">API Key</label
+        ><input
+          id="api-key"
+          type="password"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="本机无鉴权服务可留空"
+        />
+        <div class="key-controls">
+          <span id="key-state" class="hint"></span
+          ><button id="clear-api-key" type="button">清除已保存密钥</button>
+        </div>
+        <div class="api-tuning">
+          <div>
+            <label for="api-timeout">超时（秒）</label
+            ><input id="api-timeout" type="number" min="15" max="600" />
+          </div>
+          <div>
+            <label for="api-chunk">每段字符数</label
+            ><input
+              id="api-chunk"
+              type="number"
+              min="2000"
+              max="24000"
+              step="1000"
+            />
+          </div>
+        </div>
+        <label class="check"
+          ><input id="api-json" type="checkbox" />启用 JSON 模式</label
+        >
+        <p class="hint">
+          部分兼容服务不支持 response_format，可关闭此项；应用仍会校验结果结构。
+        </p>
+      </div>
+      <p id="codex-note" class="hint">
+        使用本机 Codex 的登录与额度，需要已安装并登录 Codex CLI。音频不会上传。
+      </p>
+      <div class="model-security">
+        密钥经系统钥匙串加密后存储，不写入录音、导出文件或应用日志。更换服务域名时请重新填写密钥。
+      </div>
+      <div class="dialog-actions">
+        <button id="test-model">保存并测试连接</button
+        ><button id="save-model" class="primary">保存配置</button>
+      </div>
+      <p id="model-status" role="status" aria-live="polite"></p>
+    </dialog>
     <div id="toast" role="status"></div>
     <div id="drop-overlay">松开文件，开始本地转写</div>
     <script src="insights-ui.js"></script>
+    <script src="model-settings-ui.js"></script>
     <script src="renderer.js"></script>
   </body>
 </html>

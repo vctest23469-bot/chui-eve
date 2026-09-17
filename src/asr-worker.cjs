@@ -4,6 +4,9 @@ const onnx = require(
   path.join(process.env.CHUI_RUNTIME, "sherpa-runtime/sherpa-onnx-node"),
 );
 const root = process.env.CHUI_MODEL;
+const speechGate = require("./speech-gate.cjs").createSpeechGate(
+  process.env.CHUI_RUNTIME,
+);
 const send = (x) => process.stdout.write(JSON.stringify(x) + "\n");
 try {
   const r = new onnx.OfflineRecognizer({
@@ -25,6 +28,10 @@ try {
     try {
       const j = JSON.parse(line),
         w = onnx.readWave(j.path, false);
+      if (!speechGate(j.path).speech) {
+        send({ id: j.id, text: "", suppressed: "no_speech" });
+        return;
+      }
       let energy = 0;
       for (const v of w.samples) energy += v * v;
       if (Math.sqrt(energy / w.samples.length) < 0.002) {

@@ -70,3 +70,71 @@ test("长分段不截断，非法结构被拒绝", () => {
     validateResult({ summary: "有摘要", topics: [{ title: "错误" }] }),
   );
 });
+
+test("行动项不截断，伪造证据降级，人名和期限不得推断", () => {
+  const { verifyActions } = require("../src/meeting-template.cjs");
+  const r = {
+    segments: [{ start: 60.4, text: "我会把参数发群里，请大家确认。" }],
+  };
+  const v = {
+    ...result,
+    actionItems: Array.from({ length: 12 }, (_, i) => ({
+      task: "发送参数" + i,
+      start: 60,
+      quote: r.segments[0].text,
+      owner: "张三",
+      deadline: "明天",
+    })),
+    uncertainties: [],
+  };
+  v.actionItems.push({
+    task: "购买设备",
+    start: 60,
+    quote: "已同意购买",
+    owner: null,
+    deadline: null,
+  });
+  const checked = verifyActions(v, r);
+  assert.equal(checked.actions.length, 12);
+  assert.equal(checked.actionItems[0].owner, null);
+  assert.equal(checked.actionItems[0].deadline, null);
+  assert.ok(checked.uncertainties.some((x) => x.includes("购买设备")));
+  assert.equal(checked.actionItems[0].start, 60.4);
+});
+
+test("引用段落编号直接回填原文，拒绝不存在的引用", () => {
+  const { verifyActions } = require("../src/meeting-template.cjs");
+  const record = {
+    segments: [
+      { start: 10, text: "会后我把参数发到群里。" },
+      { start: 25, text: "小李明天完成测试。" },
+    ],
+  };
+  const checked = verifyActions(
+    {
+      ...result,
+      actionItems: [
+        {
+          task: "发送参数",
+          owner: null,
+          deadline: "会后",
+          evidenceIds: ["s0"],
+        },
+        {
+          task: "完成测试",
+          owner: "小李",
+          deadline: "明天",
+          evidenceIds: ["s1"],
+        },
+        { task: "虚构任务", evidenceIds: ["s999"] },
+      ],
+    },
+    record,
+  );
+  assert.equal(checked.actionItems.length, 2);
+  assert.ok(checked.actionItems[0].quote.includes(record.segments[0].text));
+  assert.equal(checked.actionItems[1].start, 25);
+  assert.equal(checked.actionItems[1].owner, "小李");
+  assert.ok(checked.uncertainties[0].includes("虚构任务"));
+  assert.ok(chunksFor(record, 24000, true).join("").includes("[s1] [00:25]"));
+});

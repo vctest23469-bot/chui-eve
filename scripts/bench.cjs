@@ -16,10 +16,9 @@ const path = require("node:path"),
         "Library/Application Support/Chui Eve/models/Qwen3-ASR-1.7B-4bit",
       ),
     });
-  const base = path.join(
-    os.homedir(),
-    "Library/Application Support/Eve Recorder/models/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25/test_wavs",
-  );
+  const samples = process.argv.slice(3);
+  if (!samples.length)
+    throw Error("Usage: node scripts/bench.cjs mlx sample.wav ...");
   let maxLag = 0,
     last = Date.now();
   const interval = setInterval(() => {
@@ -27,9 +26,9 @@ const path = require("node:path"),
     last = Date.now();
   }, 20);
   const results = [];
-  for (const name of ["fast1.wav", "raokouling.wav", "codeswitch.wav"]) {
+  for (const name of samples) {
     const start = Date.now();
-    const id = await e.importFile(path.join(base, name));
+    const id = await e.importFile(path.resolve(name));
     await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(Error("timeout")), 180000);
       function check() {

@@ -4,6 +4,7 @@ const fs = require("node:fs/promises"),
   os = require("node:os");
 const { randomUUID } = require("node:crypto");
 const { fingerprint } = require("../src/insights.cjs");
+const { DEFAULTS, configHash } = require("../src/model-api.cjs");
 (async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "chui-insights-ui-")),
     id = randomUUID();
@@ -27,6 +28,7 @@ const { fingerprint } = require("../src/insights.cjs");
     status: "done",
     model: "GPT-5.5 · Codex CLI",
     sourceHash: fingerprint(record),
+    providerHash: configHash(DEFAULTS),
     result: {
       summary: "发布延期至九月二十日，性能测试由小李负责，预算未定。",
       topics: [
@@ -39,6 +41,18 @@ const { fingerprint } = require("../src/insights.cjs");
           points: ["小李九月十五日前完成。", "启动时间目标三秒以内。"],
         },
       ],
+      templateVersion: 2,
+      decisions: ["九月二十日发布。"],
+      uncertainties: ["预算待确认。"],
+      actionItems: [
+        {
+          task: "完成性能测试",
+          owner: "小李",
+          deadline: "九月十五日前",
+          start: 0,
+          quote: "小李九月十五日前完成性能测试",
+        },
+      ],
       actions: ["小李完成性能测试。"],
     },
   };
@@ -46,6 +60,11 @@ const { fingerprint } = require("../src/insights.cjs");
   await fs.writeFile(
     path.join(root, "library/records", id, "record.json"),
     JSON.stringify(record),
+  );
+  const { wavHeader } = require("../src/audio.cjs");
+  await fs.writeFile(
+    path.join(root, "library/records", id, "audio.wav"),
+    Buffer.concat([wavHeader(384000), Buffer.alloc(384000)]),
   );
   const app = await electron.launch({
     args: ["--user-data-dir=" + path.join(root, "profile"), "."],
@@ -58,6 +77,18 @@ const { fingerprint } = require("../src/insights.cjs");
     await page.locator(".record-item").click();
     await page.locator("#summary").click();
     await page.locator(".summary-lead").waitFor();
+    if (
+      !(await page.locator(".action-list").innerText()).includes("九月十五日前")
+    )
+      throw Error("行动项字段未呈现");
+    await page.evaluate(() => {
+      document.querySelector("#playback").muted = true;
+      document.querySelector("#playback").currentTime = 4;
+    });
+    await page.locator(".action-list button").click();
+    const time = await page.locator("#playback").evaluate((p) => p.currentTime);
+    if (time > 2) throw Error("证据回听未跳转");
+    await page.locator("#playback").evaluate((p) => p.pause());
     await page.screenshot({ path: "artifacts/insights-summary.png" });
     const s = await page.locator("#summary").boundingBox(),
       e = await page.locator("#export-format").boundingBox();
@@ -116,12 +147,11 @@ const { fingerprint } = require("../src/insights.cjs");
       async () => (await window.eve.state()).records[0].insights.stale,
     );
     await page.locator("[data-insights-view=summary]").click();
-    if (
-      !(await page.locator("#insights-status").innerText()).includes(
-        "需要重新提炼",
-      )
-    )
-      throw Error("未提示过期");
+    await page.waitForFunction(() =>
+      document
+        .querySelector("#insights-status")
+        .textContent.includes("需要重新提炼"),
+    );
     const output = path.join(root, "export.md");
     await app.evaluate(({ dialog }, filePath) => {
       dialog.showSaveDialog = async () => ({ canceled: false, filePath });

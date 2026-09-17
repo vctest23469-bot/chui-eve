@@ -135,8 +135,8 @@
         (v?.stale
           ? "原文已修改，当前结果需要重新提炼。"
           : v?.result
-            ? "已保存 · GPT-5.5 云端提炼 · 请结合原文核对"
-            : "将转写文字提交至 GPT-5.5，生成摘要与思维导图。");
+            ? `已保存 · ${v.model || "模型提炼"} · 请结合原文核对`
+            : "将转写文字提交至已配置的模型服务，生成摘要与思维导图。");
     $("#insights-regenerate").disabled = busy || unavailable;
     $("#insights-cancel").hidden = !busy;
     $("#insights-copy").disabled = !v?.result;
@@ -162,9 +162,16 @@
     const result = v.result;
     if (view === "summary") {
       body.append(
-        node("h2", "摘要"),
+        node("h2", "会议概览"),
         node("p", result.summary, "summary-lead"),
       );
+      body.append(node("h3", "已明确结论"));
+      const decisions = node("ul");
+      (result.decisions?.length
+        ? result.decisions
+        : ["原文未明确，或旧版摘要尚未按模板提炼。"]
+      ).forEach((x) => decisions.append(node("li", x)));
+      body.append(decisions, node("h3", "讨论要点"));
       for (const t of result.topics) {
         const section = node("section", undefined, "summary-topic");
         section.append(node("h3", t.title));
@@ -173,12 +180,58 @@
         section.append(list);
         body.append(section);
       }
-      body.append(node("h3", "明确行动项"));
-      if (result.actions.length) {
+      body.append(
+        node("h3", "待办事项"),
+        node(
+          "p",
+          "以下依据转写原文提取；人名、期限及承诺语义请回听核对。",
+          "muted",
+        ),
+      );
+      if (result.actionItems?.length) {
+        const list = node("ol", undefined, "action-list");
+        result.actionItems.forEach((a) => {
+          const item = node("li");
+          item.append(
+            node("strong", a.task),
+            node(
+              "p",
+              `负责人：${a.owner || "待确认"} · 期限：${a.deadline || "未明确"}`,
+            ),
+          );
+          const play = node(
+            "button",
+            `${Math.floor(a.start / 60)}:${String(Math.floor(a.start % 60)).padStart(2, "0")} 回听原文`,
+          );
+          play.onclick = () => {
+            const player = $("#playback");
+            player.currentTime = a.start;
+            player.play().catch((e) => {
+              if (e.name !== "AbortError") fail(e);
+            });
+          };
+          item.append(play, node("blockquote", a.quote));
+          list.append(item);
+        });
+        body.append(list);
+      } else if (result.actions.length) {
+        body.append(
+          node("p", "旧版行动项尚未逐条校验证据，请重新提炼。", "muted"),
+        );
         const list = node("ul");
         result.actions.forEach((a) => list.append(node("li", a)));
         body.append(list);
-      } else body.append(node("p", "原文未明确行动项。", "muted"));
+      } else
+        body.append(
+          node("p", "原文未提取到有可核对证据的明确行动项。", "muted"),
+        );
+      body.append(node("h3", "待确认问题"));
+      const questions = node("ul");
+      (result.uncertainties?.length
+        ? result.uncertainties
+        : ["暂无记录。"]
+      ).forEach((x) => questions.append(node("li", x)));
+      body.append(questions);
     } else {
       body.append(
         node("p", "点击主题展开 / 收起 · 可横向滚动与缩放", "map-hint"),

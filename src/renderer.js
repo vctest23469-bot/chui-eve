@@ -78,9 +78,11 @@ function receive(s) {
     : "";
   $("#engine-state").textContent = s.engine.state;
   $("#engine-model").textContent =
-    s.settings.backend === "mlx"
-      ? "Qwen3-ASR 1.7B · MLX GPU"
-      : "Qwen3-ASR 0.6B · CPU";
+    s.settings.backend === "funasr"
+      ? "Fun-ASR-Nano 800M · 本地"
+      : s.settings.backend.startsWith("mlx")
+        ? "Qwen3-ASR 1.7B · MLX GPU"
+        : "Qwen3-ASR 0.6B · CPU";
   $("#engine-dot").classList.toggle("ok", s.engine.ready);
   renderList();
   renderDetail();
@@ -215,7 +217,9 @@ function renderDetail() {
             return;
           }
           p.currentTime = s.start;
-          await p.play();
+          await p.play().catch((e) => {
+            if (e.name !== "AbortError") throw e;
+          });
         });
       const p = document.createElement("p");
       p.contentEditable = "true";
@@ -285,18 +289,33 @@ $("#open-settings").onclick = () =>
     const avail = await api.availability();
     document.querySelectorAll("[name=backend]").forEach((x) => {
       x.checked = x.value === state.settings.backend;
-      x.disabled = x.value === "mlx" && !avail.mlx;
+      x.disabled = !avail[x.value];
     });
-    $("#settings-status").textContent = avail.mlx
-      ? ""
-      : "MLX 模型尚未安装，当前可用 ONNX 引擎。";
+    $("#settings-status").textContent =
+      avail.mlx && avail["mlx-bf16"]
+        ? ""
+        : "未安装或文件缺失的模型不可选；请使用当前可用引擎。";
+    $("#asr-hotwords").value = state.settings.hotwords || "";
+    $("#asr-hotwords").disabled = !state.settings.backend.startsWith("mlx");
+    $("#asr-language").value = state.settings.language || "";
     $("#settings-dialog").showModal();
   });
+document.querySelectorAll("[name=backend]").forEach((x) =>
+  x.addEventListener("change", () => {
+    $("#asr-hotwords").disabled = !$(
+      "[name=backend]:checked",
+    )?.value.startsWith("mlx");
+  }),
+);
 $("#close-settings").onclick = () => $("#settings-dialog").close();
 $("#save-settings").onclick = () =>
   safe(async () => {
     const backend = $("[name=backend]:checked").value;
-    await api.settings({ backend });
+    await api.settings({
+      backend,
+      hotwords: $("#asr-hotwords").value,
+      language: $("#asr-language").value,
+    });
     $("#settings-dialog").close();
     toast("模型正在后台加载");
   });
@@ -313,26 +332,52 @@ async function devices() {
       )
       .join("");
   $("#device").value = selectedDevice;
+  updateDeviceLabel();
+}
+function updateDeviceLabel() {
+  const track = streams?.[0]?.getAudioTracks()[0];
+  const label =
+    track?.label ||
+    $("#device").selectedOptions[0]?.textContent ||
+    "系统默认麦克风";
+  $("#monitor-device").textContent =
+    label + (liveId && streams.length > 1 ? " + 电脑声音" : "");
+  $("#monitor-device").title = $("#monitor-device").textContent;
+}
+$("#device").addEventListener("change", updateDeviceLabel);
+function updateMonitor(level, speaking) {
+  $("#monitor-db").textContent =
+    level == null
+      ? "— dB"
+      : Math.max(-80, 20 * Math.log10(Math.max(level, 0.0001))).toFixed(1) +
+        " dB";
+  $("#monitor-speech").textContent =
+    level == null ? "未录制" : speaking ? "有说话声" : "无说话声";
+  $("#monitor-speech-dot").classList.toggle("ok", level != null && speaking);
 }
 navigator.mediaDevices.addEventListener("devicechange", () => devices());
 devices().catch(() => {});
-let levels = Array(56).fill(0.025);
+let levels = Array(64).fill(0);
 function drawWave() {
   const canvas = $("#wave"),
     ctx = canvas.getContext("2d"),
     w = canvas.clientWidth,
-    h = 65;
+    h = 90;
   canvas.width = w * devicePixelRatio;
   canvas.height = h * devicePixelRatio;
   ctx.scale(devicePixelRatio, devicePixelRatio);
-  ctx.fillStyle = getComputedStyle(document.body).getPropertyValue(
-    liveId ? "--blue" : "--muted",
-  );
+  ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--muted");
   const gap = w / levels.length;
   levels.forEach((level, i) => {
-    const bh = Math.max(3, Math.min(55, level * 180));
+    const bh = Math.max(4, Math.min(64, Math.sqrt(level) * 155));
     ctx.beginPath();
-    ctx.roundRect(i * gap, (h - bh) / 2, 2.5, bh, 1.25);
+    ctx.roundRect(
+      i * gap,
+      (h - bh) / 2,
+      Math.max(1.5, gap * 0.6),
+      bh,
+      gap * 0.3,
+    );
     ctx.fill();
   });
 }
@@ -353,9 +398,10 @@ async function begin() {
       video: false,
     });
     streams = [mic];
+    updateDeviceLabel();
     if ($("#system-audio").checked) {
       const display = await navigator.mediaDevices.getDisplayMedia({
-        video: { width: 320, height: 180, frameRate: 1 },
+        video: true,
         audio: true,
       });
       if (!display.getAudioTracks().length) {
@@ -406,6 +452,7 @@ async function begin() {
           });
       }
       if (e.data.level !== undefined) {
+        updateMonitor(e.data.level, e.data.speaking);
         levels.shift();
         levels.push(e.data.level);
         drawWave();
@@ -425,6 +472,9 @@ async function begin() {
     await audioContext?.close();
     audioContext = null;
     liveId = null;
+    streams = [];
+    updateMonitor(null, false);
+    updateDeviceLabel();
     if (id) await api.stop(id);
     toast(e.message);
   } finally {
@@ -464,7 +514,9 @@ async function end() {
     $("#live-status").innerHTML = '<i class="dot"></i>准备就绪';
     $("#device").disabled = false;
     $("#system-audio").disabled = false;
-    levels = Array(56).fill(0.025);
+    updateMonitor(null, false);
+    updateDeviceLabel();
+    levels = Array(64).fill(0);
     drawWave();
     stopping = false;
   }
