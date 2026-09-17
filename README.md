@@ -69,8 +69,6 @@ npm run package
 
 ## 上游与许可
 
-功能独立实现，产品研究参考 [EVE](https://github.com/nexmoe/eve)、[Meetily](https://github.com/Zackriya-Solutions/meetily)、[Buzz](https://github.com/chidiwilliams/buzz) 与 [Vibe](https://github.com/thewh1teagle/vibe)。本版图标为项目原创，CG 为 AI 生成，界面截图使用合成演示数据。
-
 第三方依赖包括 Electron（MIT 及其附属许可）、sherpa-onnx（Apache-2.0）、ONNX Runtime（MIT）、Silero VAD（MIT）、MLX/MLX Audio（MIT），模型以各模型卡为准。Chui Eve 使用 FFmpeg（LGPL-2.1-or-later），其[对应源码](https://ffmpeg.org/releases/ffmpeg-8.0.1.tar.xz)与构建说明随 Release 提供；本构建没有 GPL/nonfree 编解码器。第三方许可证位于应用资源的 `runtime/licenses` 和 Electron 自带许可证中。
 
 项目原创代码采用 [MIT 许可证](LICENSE)。第三方组件、模型及其附属资源继续适用各自许可证；MIT 不替代上游授权条款。欢迎通过 Issue 反馈问题或提交 Pull Request；请使用合成样本，避免上传真实录音、转写、密钥或其他个人信息。
