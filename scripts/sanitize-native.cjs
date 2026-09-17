@@ -32,7 +32,7 @@ async function sanitizeNative(root) {
         for (const match of commands.matchAll(
           /cmd LC_RPATH\s+cmdsize \d+\s+path (.+?) \(offset/g,
         )) {
-          if (/^\/(Users|home)\//.test(match[1])) {
+          if (/^\/(Users|home|(?:private\/)?var\/folders)\//.test(match[1])) {
             if (!commands.includes("path @loader_path "))
               throw Error(
                 "Native binary has an absolute build dependency; refusing to package",
@@ -47,11 +47,11 @@ async function sanitizeNative(root) {
         execFileSync("strip", ["-S", working], { stdio: "ignore" });
         bytes = await fs.readFile(working);
         const text = bytes.toString("latin1");
-        let changed = false;
-        for (const m of text.matchAll(/\/(?:Users|home)\/[^/\s"'<>\x00]+/g)) {
+        for (const m of text.matchAll(
+          /\/(?:Users|home)\/[^/\s"'<>\x00]+|\/(?:private\/)?var\/folders\/[^/\s"'<>\x00]+\/[^/\s"'<>\x00]+\/T/g,
+        )) {
           const replacement = "/build/" + "_".repeat(m[0].length - 7);
           bytes.write(replacement, m.index, m[0].length, "latin1");
-          changed = true;
           count++;
         }
         await fs.writeFile(file, bytes);

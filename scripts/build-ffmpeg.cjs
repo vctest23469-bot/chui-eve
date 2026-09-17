@@ -30,7 +30,9 @@ const flags = [
 ];
 async function build() {
   const root = path.resolve(__dirname, "..");
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "chui-ffmpeg-build-"));
+  // The compiler records flags in the binary; avoid per-user temporary paths.
+  const buildRoot = process.platform === "darwin" ? "/private/tmp" : "/tmp";
+  const dir = await fs.mkdtemp(path.join(buildRoot, "chui-ffmpeg-build-"));
   try {
     const archive = path.join(dir, `ffmpeg-${version}.tar.xz`);
     const cached = path.join(root, "dist", `ffmpeg-${version}-source.tar.xz`);
