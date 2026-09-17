@@ -4,7 +4,7 @@
 
 ## 安装应用
 
-1. 从私有仓库的 Releases 下载 `Chui-Eve-1.2.0-macOS-arm64.zip` 和 `SHA256SUMS.txt`。需要已获仓库访问权限并登录 GitHub。
+1. 从 [Releases](https://github.com/vctest23469-bot/chui-eve/releases) 下载 `Chui-Eve-1.2.0-macOS-arm64.zip` 和 `SHA256SUMS.txt`。
 2. 使用 `shasum -a 256` 核对压缩包与校验文件。
 3. 解压，将 `Chui Eve.app` 拖入「应用程序」。升级前结束录音并退出旧版。
 4. 本包为 ad-hoc 签名，未做 Apple 公证。若系统阻止启动，请在核对下载来源后，通过 macOS「系统设置 → 隐私与安全性」允许打开；不要关闭系统整体安全保护。

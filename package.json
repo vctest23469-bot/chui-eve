@@ -3,6 +3,7 @@
   "productName": "Chui Eve",
   "version": "1.2.0",
   "private": true,
+  "license": "MIT",
   "description": "本地会议实时转写与音频工作台",
   "main": "src/main.cjs",
   "scripts": {

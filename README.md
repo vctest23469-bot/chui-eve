@@ -6,7 +6,7 @@
 
 ![Chui Eve 产品 CG](docs/assets/hero.png)
 
-> 上图为产品概念 CG；下方为实际应用界面，内容均来自合成演示库。仓库与 Release 保持私有，仅向获授权人员开放。
+> 上图为产品概念 CG；下方为实际应用界面，内容均来自合成演示库。项目采用 MIT 许可证，源码与 Release 公开提供。
 
 ## 从声音到可用的记录
 
@@ -38,7 +38,7 @@ Chui Eve 把会议录制、音频导入、时间戳回听和文字整理放在�
 
 ## 安装与开始
 
-1. 从 [Releases](https://github.com/vctest23469-bot/chui-eve/releases) 下载 Apple Silicon Mac 应用，核对 SHA-256 后解压并拖入「应用程序」。需已获本仓库访问权限。
+1. 从 [Releases](https://github.com/vctest23469-bot/chui-eve/releases) 下载 Apple Silicon Mac 应用，核对 SHA-256 后解压并拖入「应用程序」。
 2. 安装本地 ASR 模型与 Python 环境。模型不包含在应用包内，推荐先使用 Qwen3-ASR 1.7B 4-bit；具体命令见 [安装指南](docs/INSTALL.md)。
 3. 授予麦克风权限；录制电脑声音还需要屏幕及系统音频权限。开始会议或导入录音。
 4. 转写结束后，配置摘要服务，点击「提炼摘要」或「思维导图」。
@@ -73,4 +73,4 @@ npm run package
 
 第三方依赖包括 Electron（MIT 及其附属许可）、sherpa-onnx（Apache-2.0）、ONNX Runtime（MIT）、Silero VAD（MIT）、MLX/MLX Audio（MIT），模型以各模型卡为准。Chui Eve 使用 FFmpeg（LGPL-2.1-or-later），其[对应源码](https://ffmpeg.org/releases/ffmpeg-8.0.1.tar.xz)与构建说明随 Release 提供；本构建没有 GPL/nonfree 编解码器。第三方许可证位于应用资源的 `runtime/licenses` 和 Electron 自带许可证中。
 
-本仓库目前为私有项目，未授予额外开源许可。
+项目原创代码采用 [MIT 许可证](LICENSE)。第三方组件、模型及其附属资源继续适用各自许可证；MIT 不替代上游授权条款。欢迎通过 Issue 反馈问题或提交 Pull Request；请使用合成样本，避免上传真实录音、转写、密钥或其他个人信息。

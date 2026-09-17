@@ -13,6 +13,7 @@ const { sanitizeNative } = require("./sanitize-native.cjs");
     filter: (p) => !p.includes("__pycache__") && !p.endsWith(".pyc"),
   });
   const pkg = require("../package.json");
+  await fs.copyFile(path.join(root, "LICENSE"), path.join(stage, "LICENSE"));
   await fs.writeFile(
     path.join(stage, "package.json"),
     JSON.stringify(
@@ -23,6 +24,7 @@ const { sanitizeNative } = require("./sanitize-native.cjs");
         main: pkg.main,
         description: pkg.description,
         private: true,
+        license: pkg.license,
       },
       null,
       2,
